@@ -175,8 +175,8 @@ Os ecrãs estão mockados e aprovados pelo Rasch. Manter coerência visual.
 
 ### Fase 2 — Core (semanas 3-4)
 
-- [ ] Painel principal
-- [ ] CRUD de clientes
+- [x] Painel principal (shell editorial com nav + dois cartões empresa/família)
+- [x] CRUD de clientes (lista, criação, edição, eliminação)
 - [ ] CRUD de orçamentos (pipeline Kanban)
 - [ ] CRUD de obras
 - [ ] CRUD de decisões

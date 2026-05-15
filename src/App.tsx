@@ -1,9 +1,24 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import Shell from '@/components/Shell'
 import Login from '@/pages/Login'
 import Painel from '@/pages/Painel'
+import Clientes from '@/pages/Clientes'
+import Orcamentos from '@/pages/Orcamentos'
+import Obras from '@/pages/Obras'
+import Despesas from '@/pages/Despesas'
+import Decisoes from '@/pages/Decisoes'
+import Familia from '@/pages/Familia'
+
+function ProtectedLayout() {
+  return (
+    <Shell>
+      <Outlet />
+    </Shell>
+  )
+}
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -40,11 +55,16 @@ export default function App() {
           element={session ? <Navigate to="/" replace /> : <Login />}
         />
         <Route
-          path="/"
-          element={
-            session ? <Painel session={session} /> : <Navigate to="/login" replace />
-          }
-        />
+          element={session ? <ProtectedLayout /> : <Navigate to="/login" replace />}
+        >
+          <Route path="/" element={<Painel />} />
+          <Route path="/clientes" element={<Clientes />} />
+          <Route path="/orcamentos" element={<Orcamentos />} />
+          <Route path="/obras" element={<Obras />} />
+          <Route path="/despesas" element={<Despesas />} />
+          <Route path="/decisoes" element={<Decisoes />} />
+          <Route path="/familia" element={<Familia />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
