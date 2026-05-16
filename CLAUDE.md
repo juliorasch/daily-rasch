@@ -186,11 +186,16 @@ Os ecrãs estão mockados e aprovados pelo Rasch. Manter coerência visual.
 
 ### Fase 3 — Inteligência (semanas 5-6)
 
-- [ ] Upload de foto/PDF de fatura
-- [ ] Integração Claude Vision para OCR
-- [ ] Algoritmo de sugestão obra (cruzar itens com obras em curso)
-- [ ] Confirmação e correção manual
-- [ ] Sincronização bidirecional com iziBizi
+- [x] Upload de foto/PDF de fatura (Supabase Storage bucket `faturas`, captura mobile)
+- [x] Integração Claude Vision para OCR (edge function `analisar-fatura`, modelo `claude-opus-4-7` com `output_config.format` para JSON garantido)
+- [x] Algoritmo de sugestão obra (edge function recebe obras em curso e devolve `obra_sugerida_id`)
+- [x] Confirmação e correção manual (form pré-preenche campos da IA mas marca `confirmado_pelo_user = false` até user guardar)
+- [ ] Sincronização bidirecional com iziBizi (a aguardar credenciais API)
+
+> **Para activar a OCR:**
+> 1. Aplicar `supabase/migrations/0002_storage_faturas.sql` no SQL Editor (cria bucket `faturas` + policies).
+> 2. Definir o secret no projecto Supabase: `supabase secrets set ANTHROPIC_API_KEY=sk-ant-...`
+> 3. Fazer deploy da edge function: `supabase functions deploy analisar-fatura`
 
 ### Fase 4 — Polimento (semanas 7-8)
 

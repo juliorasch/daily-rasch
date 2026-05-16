@@ -1,6 +1,23 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import {
+  deleteFatura,
+  isStoragePath,
+  resolveFotoUrl,
+  uploadFatura,
+} from '@/lib/storage'
 import type { Database } from '@/types/database'
+
+type AnaliseIA = {
+  fornecedor?: string
+  nif_fornecedor?: string | null
+  data?: string
+  valor?: number
+  categoria?: string | null
+  itens?: { descricao: string; valor: number }[]
+  obra_sugerida_id?: string | null
+  confianca?: number
+}
 
 type ObraLite = Pick<Database['public']['Tables']['obras']['Row'], 'id' | 'descricao'>
 type DespesaRow = Database['public']['Tables']['despesas']['Row']
@@ -236,9 +253,98 @@ function DespesaForm({ despesa, obras, onClose, onSaved }: FormProps) {
   const [descricao, setDescricao] = useState(despesa?.descricao ?? '')
   const [categoria, setCategoria] = useState(despesa?.categoria ?? '')
   const [fotoUrl, setFotoUrl] = useState(despesa?.foto_url ?? '')
+  const [fotoPreviewUrl, setFotoPreviewUrl] = useState<string | null>(null)
   const [confirmado, setConfirmado] = useState(despesa?.confirmado_pelo_user ?? true)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+  const [analisando, setAnalisando] = useState(false)
+  const [analiseInfo, setAnaliseInfo] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!fotoUrl) {
+      setFotoPreviewUrl(null)
+      return
+    }
+    resolveFotoUrl(fotoUrl).then((url) => {
+      if (!cancelled) setFotoPreviewUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [fotoUrl])
+
+  async function handleFotoChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingFoto(true)
+    setError(null)
+    try {
+      if (fotoUrl && isStoragePath(fotoUrl)) {
+        await deleteFatura(fotoUrl).catch(() => undefined)
+      }
+      const path = await uploadFatura(file)
+      setFotoUrl(path)
+      setAnaliseInfo(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha no upload.')
+    } finally {
+      setUploadingFoto(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  async function handleRemoverFoto() {
+    if (!fotoUrl) return
+    setError(null)
+    if (isStoragePath(fotoUrl)) {
+      await deleteFatura(fotoUrl).catch(() => undefined)
+    }
+    setFotoUrl('')
+    setAnaliseInfo(null)
+  }
+
+  async function handleAnalisar() {
+    if (!fotoUrl || !isStoragePath(fotoUrl)) return
+    setAnalisando(true)
+    setError(null)
+    setAnaliseInfo(null)
+    try {
+      const { data: out, error: fnError } = await supabase.functions.invoke<
+        AnaliseIA & { error?: string }
+      >('analisar-fatura', { body: { fotoPath: fotoUrl } })
+      if (fnError) throw fnError
+      if (!out || out.error) throw new Error(out?.error ?? 'Sem resposta.')
+
+      if (out.fornecedor && !fornecedor.trim()) setFornecedor(out.fornecedor)
+      if (out.nif_fornecedor && !nifFornecedor.trim()) setNifFornecedor(out.nif_fornecedor)
+      if (typeof out.valor === 'number' && !valor) setValor(String(out.valor))
+      if (out.data) setData(out.data)
+      if (out.categoria && !categoria.trim()) setCategoria(out.categoria)
+      if (out.obra_sugerida_id && !obraId) {
+        const existe = obras.some((o) => o.id === out.obra_sugerida_id)
+        if (existe) setObraId(out.obra_sugerida_id)
+      }
+      if (out.itens && out.itens.length > 0 && !descricao.trim()) {
+        setDescricao(
+          out.itens
+            .map((it) => `${it.descricao} — ${it.valor.toFixed(2)}€`)
+            .join('\n'),
+        )
+      }
+      setConfirmado(false)
+      const conf = typeof out.confianca === 'number'
+        ? ` (confiança ${(out.confianca * 100).toFixed(0)}%)`
+        : ''
+      setAnaliseInfo(`Campos preenchidos pela IA${conf}. Confirma antes de guardar.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha na análise.')
+    } finally {
+      setAnalisando(false)
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -408,18 +514,62 @@ function DespesaForm({ despesa, obras, onClose, onSaved }: FormProps) {
               />
             </label>
 
-            <label className="block">
-              <span className="text-[11px] tracking-editorial-wide uppercase text-gold-dim block mb-2">
-                Foto / PDF (URL)
-              </span>
-              <input
-                type="url"
-                value={fotoUrl}
-                onChange={(e) => setFotoUrl(e.target.value)}
-                placeholder="https://…"
-                className="w-full bg-bg border border-line focus:border-gold rounded-editorial px-4 py-3 text-cream-bright text-sm outline-none transition-colors"
-              />
-            </label>
+            <div />
+          </div>
+
+          <div>
+            <span className="text-[11px] tracking-editorial-wide uppercase text-gold-dim block mb-2">
+              Fatura (foto ou ficheiro)
+            </span>
+
+            {fotoPreviewUrl ? (
+              <div className="border border-line rounded-editorial overflow-hidden bg-bg">
+                <img
+                  src={fotoPreviewUrl}
+                  alt="Fatura"
+                  className="w-full max-h-72 object-contain bg-bg-deep"
+                />
+                <div className="flex items-center justify-between px-4 py-3 border-t border-line gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleAnalisar}
+                    disabled={analisando || !isStoragePath(fotoUrl)}
+                    className="border border-gold text-gold px-4 py-2 text-[11px] tracking-editorial-wide uppercase rounded-editorial hover:bg-gold hover:text-bg transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gold"
+                  >
+                    {analisando ? 'A analisar…' : 'Analisar com IA'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoverFoto}
+                    className="text-muted text-[11px] tracking-editorial-wide uppercase hover:text-negative transition-colors"
+                  >
+                    Remover
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 border border-dashed border-line hover:border-gold rounded-editorial py-8 px-4 cursor-pointer transition-colors bg-bg">
+                <span className="text-gold text-[11px] tracking-editorial-wide uppercase">
+                  {uploadingFoto ? 'A carregar…' : 'Capturar ou escolher ficheiro'}
+                </span>
+                <span className="text-muted text-xs italic text-center">
+                  No telemóvel abre a câmara. Aceita JPG, PNG ou PDF.
+                </span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  capture="environment"
+                  onChange={handleFotoChange}
+                  disabled={uploadingFoto}
+                  className="hidden"
+                />
+              </label>
+            )}
+
+            {analiseInfo && (
+              <p className="text-positive text-xs italic mt-2">{analiseInfo}</p>
+            )}
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer">
