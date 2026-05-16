@@ -44,13 +44,22 @@ export default function Familia() {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
   const [tab, setTab] = useState<Kind>('despesa')
+  const [importing, setImporting] = useState(false)
+  const [importInfo, setImportInfo] = useState<string | null>(null)
+  const [previousFixas, setPreviousFixas] = useState<Despesa[]>([])
 
   const { start, end } = useMemo(() => monthBounds(ref), [ref])
 
   async function load() {
     setLoading(true)
     setError(null)
-    const [e1, e2] = await Promise.all([
+    setImportInfo(null)
+
+    // bounds do mês anterior — para o feature "repetir fixas"
+    const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
+    const prevBounds = monthBounds(prevRef)
+
+    const [e1, e2, e3] = await Promise.all([
       supabase
         .from('entradas_familia')
         .select('*')
@@ -63,14 +72,65 @@ export default function Familia() {
         .gte('data', start)
         .lt('data', end)
         .order('data', { ascending: false }),
+      supabase
+        .from('despesas_familia')
+        .select('*')
+        .eq('tipo', 'fixa')
+        .eq('recorrente', true)
+        .gte('data', prevBounds.start)
+        .lt('data', prevBounds.end),
     ])
     if (e1.error) setError(e1.error.message)
     else if (e2.error) setError(e2.error.message)
     else {
       setEntradas(e1.data ?? [])
       setDespesas(e2.data ?? [])
+      setPreviousFixas(e3.data ?? [])
     }
     setLoading(false)
+  }
+
+  // Quais fixas do mês passado AINDA não existem neste mês (match por descricao).
+  const fixasParaImportar = useMemo(() => {
+    if (previousFixas.length === 0) return []
+    const existentes = new Set(
+      despesas.filter((d) => d.tipo === 'fixa').map((d) => d.descricao.trim().toLowerCase()),
+    )
+    return previousFixas.filter(
+      (p) => !existentes.has(p.descricao.trim().toLowerCase()),
+    )
+  }, [previousFixas, despesas])
+
+  async function handleImportarFixas() {
+    if (fixasParaImportar.length === 0) return
+    setImporting(true)
+    setError(null)
+    setImportInfo(null)
+
+    const novaData = start // primeiro dia do mês actual
+    const payload = fixasParaImportar.map((p) => ({
+      descricao: p.descricao,
+      valor: p.valor,
+      categoria: p.categoria,
+      tipo: p.tipo,
+      data: novaData,
+      recorrente: true,
+    }))
+
+    const { error: insertError } = await supabase
+      .from('despesas_familia')
+      .insert(payload)
+
+    setImporting(false)
+
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+    setImportInfo(
+      `${payload.length} despesa${payload.length === 1 ? '' : 's'} fixa${payload.length === 1 ? '' : 's'} importada${payload.length === 1 ? '' : 's'} do mês anterior.`,
+    )
+    await load()
   }
 
   useEffect(() => {
@@ -112,35 +172,86 @@ export default function Familia() {
     <div>
       <VoltarHub destino="Empresa" para="/painel" />
 
-      <div className="flex items-start justify-between mb-12 gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-3 mb-3">
-            <span className="block h-px w-7 bg-gold" />
-            <span className="text-gold text-[11px] tracking-editorial-wide uppercase">
-              08 — Mordomia
-            </span>
-          </div>
-          <h1 className="font-display text-4xl text-cream-bright leading-tight">
-            Vida <span className="italic text-gold">familiar.</span>
-          </h1>
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="block h-px w-7 bg-gold" />
+          <span className="text-gold text-[11px] tracking-editorial-wide uppercase">
+            08 — Mordomia
+          </span>
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setEditing({ kind: 'entrada', row: null })}
-            className="border border-gold text-gold px-5 py-3 text-[11px] tracking-editorial-wide uppercase rounded-editorial hover:bg-gold hover:text-bg transition-colors"
-          >
-            Nova entrada
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing({ kind: 'despesa', row: null })}
-            className="border border-gold text-gold px-5 py-3 text-[11px] tracking-editorial-wide uppercase rounded-editorial hover:bg-gold hover:text-bg transition-colors"
-          >
-            Nova despesa
-          </button>
-        </div>
+        <h1 className="font-display text-4xl text-cream-bright leading-tight">
+          Vida <span className="italic text-gold">familiar.</span>
+        </h1>
       </div>
+
+      {/* HERO: adicionar despesa/entrada com 1 toque */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+        <button
+          type="button"
+          onClick={() => setEditing({ kind: 'despesa', row: null })}
+          className="group flex items-center justify-between gap-4 bg-bg-card border border-line hover:border-gold rounded-editorial p-5 transition-colors text-left"
+        >
+          <div>
+            <div className="text-[11px] tracking-editorial-wide uppercase text-gold-dim group-hover:text-gold transition-colors mb-1">
+              Adicionar
+            </div>
+            <div className="font-display text-xl text-cream-bright leading-tight">
+              Nova <span className="italic text-gold">despesa.</span>
+            </div>
+          </div>
+          <span className="text-gold text-2xl transition-transform group-hover:translate-x-1">
+            →
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setEditing({ kind: 'entrada', row: null })}
+          className="group flex items-center justify-between gap-4 bg-bg-card border border-line hover:border-gold rounded-editorial p-5 transition-colors text-left"
+        >
+          <div>
+            <div className="text-[11px] tracking-editorial-wide uppercase text-gold-dim group-hover:text-gold transition-colors mb-1">
+              Adicionar
+            </div>
+            <div className="font-display text-xl text-cream-bright leading-tight">
+              Nova <span className="italic text-positive">entrada.</span>
+            </div>
+          </div>
+          <span className="text-gold text-2xl transition-transform group-hover:translate-x-1">
+            →
+          </span>
+        </button>
+      </div>
+
+      {/* Botão "Repetir fixas" — visível só quando há fixas no mês passado que
+          ainda não estão neste */}
+      {fixasParaImportar.length > 0 && (
+        <button
+          type="button"
+          onClick={handleImportarFixas}
+          disabled={importing}
+          className="w-full mb-6 bg-gold/10 border border-gold/40 hover:border-gold rounded-editorial px-5 py-4 text-left transition-colors flex items-center justify-between gap-3 disabled:opacity-50"
+        >
+          <div>
+            <div className="text-gold text-[11px] tracking-editorial-wide uppercase mb-1">
+              ↻ Repetir do mês passado
+            </div>
+            <div className="text-cream text-sm">
+              Importar {fixasParaImportar.length} despesa{fixasParaImportar.length === 1 ? '' : 's'} fixa{fixasParaImportar.length === 1 ? '' : 's'} recorrente{fixasParaImportar.length === 1 ? '' : 's'} para este mês.
+            </div>
+          </div>
+          <span className="text-gold text-xl shrink-0">
+            {importing ? '…' : '→'}
+          </span>
+        </button>
+      )}
+
+      {importInfo && (
+        <p className="text-positive text-xs italic mb-6 flex items-center gap-2">
+          <span className="text-gold">✦</span>
+          {importInfo}
+        </p>
+      )}
 
       <div className="flex items-center justify-between mb-6">
         <button
