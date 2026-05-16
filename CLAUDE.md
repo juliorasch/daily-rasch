@@ -226,6 +226,16 @@ Os ecrãs estão mockados e aprovados pelo Rasch. Manter coerência visual.
 >      -d '{"step":"all"}'
 >    ```
 >    A response inclui a forma exacta dos JSON devolvidos por `commercial_purchases_documents` e `suppliers` — a partir daí construo as edge functions tipadas + UI.
+>
+> **Bloqueador actual (16 Mai 2026):** OAuth /token devolve 403 `BROKER_AN_ERROR_OCCURRED_MESSAGE`
+> mesmo com `scope=commercial`. Suspeita: as credenciais geradas no iziBizi para esta conta
+> estão configuradas para Authorization Code flow (têm `redirect_uri` ligado ao Postman),
+> não para Client Credentials. Acções para destravar:
+>   - Pedir ao suporte Cegid para emitir novas credenciais de server-to-server (sem redirect_uri,
+>     com client_credentials grant explicitamente activo).
+>   - OU implementar o Authorization Code flow com refresh tokens persistentes (mais complexo,
+>     requer ecrã de "autorizar acesso" uma única vez).
+> Quando isto destravar, retomar daqui.
 
 ### Fase 4 — Polimento (semanas 7-8)
 
