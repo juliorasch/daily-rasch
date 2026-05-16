@@ -12,6 +12,7 @@ const nav = [
   { to: '/despesas', label: 'Despesas' },
   { to: '/decisoes', label: 'Decisões' },
   { to: '/familia', label: 'Família' },
+  { to: '/relatorio', label: 'Relatório' },
 ]
 
 export default function Shell({ children }: Props) {

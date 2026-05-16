@@ -4,6 +4,16 @@ import { supabase } from '@/lib/supabase'
 
 const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 const mesAno = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' })
+const dataPt = new Intl.DateTimeFormat('pt-PT')
+
+type Alerta = {
+  id: string
+  href: string
+  badge: string
+  badgeAccent: string
+  titulo: string
+  detalhe: string
+}
 
 type Resumo = {
   orcamentosAbertos: number
@@ -16,6 +26,7 @@ type Resumo = {
   saldoFamiliar: number
   entradasFamilia: number
   despesasFamilia: number
+  alertas: Alerta[]
 }
 
 const RESUMO_VAZIO: Resumo = {
@@ -29,6 +40,7 @@ const RESUMO_VAZIO: Resumo = {
   saldoFamiliar: 0,
   entradasFamilia: 0,
   despesasFamilia: 0,
+  alertas: [],
 }
 
 function monthBounds(ref: Date): { start: string; end: string } {
@@ -36,6 +48,20 @@ function monthBounds(ref: Date): { start: string; end: string } {
   const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 1)
   const iso = (d: Date) => d.toISOString().slice(0, 10)
   return { start: iso(start), end: iso(end) }
+}
+
+function diasAteHoje(d: string): number {
+  const target = new Date(d)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000)
+}
+
+function descreverDias(dias: number): string {
+  if (dias < 0) return `${Math.abs(dias)} dias atrás`
+  if (dias === 0) return 'Hoje'
+  if (dias === 1) return 'Amanhã'
+  return `Em ${dias} dias`
 }
 
 export default function Painel() {
@@ -46,6 +72,10 @@ export default function Painel() {
   useEffect(() => {
     const now = new Date()
     const { start, end } = monthBounds(now)
+    const hoje = now.toISOString().slice(0, 10)
+    const limite = new Date(now)
+    limite.setDate(limite.getDate() + 7)
+    const limiteIso = limite.toISOString().slice(0, 10)
 
     async function load() {
       setLoading(true)
@@ -58,6 +88,9 @@ export default function Painel() {
           decisoes,
           entradas,
           despesasFam,
+          orcamentosVencidos,
+          decisoesAltaPendentes,
+          obrasPrazoProximo,
         ] = await Promise.all([
           supabase.from('orcamentos').select('valor, estado'),
           supabase.from('obras').select('valor_contratado, estado'),
@@ -73,6 +106,29 @@ export default function Painel() {
             .select('valor')
             .gte('data', start)
             .lt('data', end),
+          supabase
+            .from('orcamentos')
+            .select('id, descricao, proximo_followup, cliente:clientes(nome)')
+            .in('estado', ['enviado', 'em_analise'])
+            .not('proximo_followup', 'is', null)
+            .lte('proximo_followup', hoje)
+            .order('proximo_followup', { ascending: true })
+            .limit(5),
+          supabase
+            .from('decisoes')
+            .select('id, titulo, prazo, prioridade')
+            .eq('estado', 'pendente')
+            .or(`prioridade.eq.alta,and(prazo.gte.${hoje},prazo.lte.${limiteIso}),prazo.lt.${hoje}`)
+            .order('prazo', { ascending: true, nullsFirst: false })
+            .limit(5),
+          supabase
+            .from('obras')
+            .select('id, descricao, prazo')
+            .eq('estado', 'em_curso')
+            .not('prazo', 'is', null)
+            .lte('prazo', limiteIso)
+            .order('prazo', { ascending: true })
+            .limit(5),
         ])
 
         const firstError =
@@ -81,7 +137,10 @@ export default function Painel() {
           despesas.error ||
           decisoes.error ||
           entradas.error ||
-          despesasFam.error
+          despesasFam.error ||
+          orcamentosVencidos.error ||
+          decisoesAltaPendentes.error ||
+          obrasPrazoProximo.error
         if (firstError) {
           setError(firstError.message)
           setLoading(false)
@@ -93,6 +152,62 @@ export default function Painel() {
         const obrasEmCursoLista = obras.data?.filter((o) => o.estado === 'em_curso') ?? []
         const entradasTotal = entradas.data?.reduce((a, r) => a + Number(r.valor), 0) ?? 0
         const despesasFamTotal = despesasFam.data?.reduce((a, r) => a + Number(r.valor), 0) ?? 0
+
+        const alertas: Alerta[] = []
+
+        for (const o of (orcamentosVencidos.data ?? []) as Array<{
+          id: string
+          descricao: string
+          proximo_followup: string
+          cliente: { nome: string } | null
+        }>) {
+          const dias = diasAteHoje(o.proximo_followup)
+          alertas.push({
+            id: `o-${o.id}`,
+            href: '/orcamentos',
+            badge: 'Orçamento',
+            badgeAccent: 'text-gold',
+            titulo: o.cliente?.nome
+              ? `${o.cliente.nome} — ${o.descricao}`
+              : o.descricao,
+            detalhe: `Follow-up ${descreverDias(dias).toLowerCase()} (${dataPt.format(new Date(o.proximo_followup))})`,
+          })
+        }
+
+        for (const d of (decisoesAltaPendentes.data ?? []) as Array<{
+          id: string
+          titulo: string
+          prazo: string | null
+          prioridade: 'alta' | 'media' | 'baixa'
+        }>) {
+          const detalhe = d.prazo
+            ? `Prazo ${descreverDias(diasAteHoje(d.prazo)).toLowerCase()} (${dataPt.format(new Date(d.prazo))})`
+            : 'Sem prazo definido'
+          alertas.push({
+            id: `d-${d.id}`,
+            href: '/decisoes',
+            badge: d.prioridade === 'alta' ? 'Decisão · alta' : 'Decisão',
+            badgeAccent: d.prioridade === 'alta' ? 'text-negative' : 'text-gold',
+            titulo: d.titulo,
+            detalhe,
+          })
+        }
+
+        for (const o of (obrasPrazoProximo.data ?? []) as Array<{
+          id: string
+          descricao: string
+          prazo: string
+        }>) {
+          const dias = diasAteHoje(o.prazo)
+          alertas.push({
+            id: `ob-${o.id}`,
+            href: `/obras/${o.id}`,
+            badge: 'Obra',
+            badgeAccent: dias < 0 ? 'text-negative' : 'text-gold',
+            titulo: o.descricao,
+            detalhe: `Prazo ${descreverDias(dias).toLowerCase()} (${dataPt.format(new Date(o.prazo))})`,
+          })
+        }
 
         setResumo({
           orcamentosAbertos: orcamentosAbertosLista.length,
@@ -113,6 +228,7 @@ export default function Painel() {
           entradasFamilia: entradasTotal,
           despesasFamilia: despesasFamTotal,
           saldoFamiliar: entradasTotal - despesasFamTotal,
+          alertas: alertas.slice(0, 6),
         })
         setLoading(false)
       } catch (err) {
@@ -144,6 +260,38 @@ export default function Painel() {
 
       {loading && <p className="text-muted text-sm">A carregar…</p>}
       {error && <p className="text-negative text-sm">{error}</p>}
+
+      {!loading && !error && resumo.alertas.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-line">
+            <span className="block h-px w-7 bg-gold" />
+            <span className="text-gold text-[11px] tracking-editorial-wide uppercase">
+              Atenção · {resumo.alertas.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {resumo.alertas.map((a) => (
+              <Link
+                key={a.id}
+                to={a.href}
+                className="flex items-center justify-between gap-4 bg-bg-card border border-line hover:border-gold rounded-editorial p-4 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className={`text-[11px] tracking-editorial-wide uppercase mb-1 ${a.badgeAccent}`}>
+                    {a.badge}
+                  </div>
+                  <div className="text-cream-bright text-sm leading-snug line-clamp-1">
+                    {a.titulo}
+                  </div>
+                </div>
+                <div className="text-muted text-xs shrink-0 text-right">
+                  {a.detalhe}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {!loading && !error && (
         <div className="grid md:grid-cols-2 gap-6">

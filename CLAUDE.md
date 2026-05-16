@@ -199,9 +199,11 @@ Os ecrãs estão mockados e aprovados pelo Rasch. Manter coerência visual.
 
 ### Fase 4 — Polimento (semanas 7-8)
 
-- [ ] Relatório semanal automático (email + dashboard)
-- [ ] Notificações de follow-up de orçamentos
-- [ ] Alertas de decisões pendentes
+- [x] Relatório semanal (dashboard `/relatorio` — secção "esta semana" + "próximos 7 dias")
+- [ ] Relatório semanal por email (agendar edge function + integração de envio)
+- [x] Notificações de follow-up de orçamentos (Painel — secção "Atenção")
+- [x] Alertas de decisões pendentes (Painel — secção "Atenção", inclui obras com prazo)
+- [x] Vista de Obra dedicada (`/obras/:id` — KPIs, despesas + decisões ligadas, margem)
 - [ ] Manual de utilizador para Rasch e esposa
 - [ ] Lançamento
 

@@ -12,6 +12,7 @@ import ObraDetail from '@/pages/ObraDetail'
 import Despesas from '@/pages/Despesas'
 import Decisoes from '@/pages/Decisoes'
 import Familia from '@/pages/Familia'
+import Relatorio from '@/pages/Relatorio'
 
 function ProtectedLayout() {
   return (
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/despesas" element={<Despesas />} />
           <Route path="/decisoes" element={<Decisoes />} />
           <Route path="/familia" element={<Familia />} />
+          <Route path="/relatorio" element={<Relatorio />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
