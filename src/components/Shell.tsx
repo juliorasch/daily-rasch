@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase'
 type Props = { children: ReactNode }
 
 const nav = [
-  { to: '/', label: 'Painel' },
+  { to: '/', label: 'Hub' },
+  { to: '/painel', label: 'Painel' },
   { to: '/clientes', label: 'Clientes' },
   { to: '/orcamentos', label: 'Orçamentos' },
   { to: '/obras', label: 'Obras' },

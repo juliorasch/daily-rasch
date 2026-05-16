@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import Shell from '@/components/Shell'
 import Login from '@/pages/Login'
+import Hub from '@/pages/Hub'
 import Painel from '@/pages/Painel'
 import Clientes from '@/pages/Clientes'
 import Orcamentos from '@/pages/Orcamentos'
@@ -59,7 +60,8 @@ export default function App() {
         <Route
           element={session ? <ProtectedLayout /> : <Navigate to="/login" replace />}
         >
-          <Route path="/" element={<Painel />} />
+          <Route path="/" element={<Hub />} />
+          <Route path="/painel" element={<Painel />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/orcamentos" element={<Orcamentos />} />
           <Route path="/obras" element={<Obras />} />

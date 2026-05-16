@@ -31,17 +31,13 @@ export default function Login() {
     try {
       const result = await supabase.auth.signInWithPassword({ email, password })
       if (result.error) {
-        // Mostra o erro REAL do Supabase para debug — depois voltamos a uma
-        // mensagem genérica.
-        const detail = `${result.error.message} (status: ${result.error.status ?? '?'})`
-        setError(detail)
+        setError('Credenciais inválidas. Tenta de novo.')
         setSubmitting(false)
       } else {
         setSuccess(true)
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setError(`Erro inesperado: ${msg}`)
+    } catch {
+      setError('Não foi possível ligar ao servidor. Verifica a ligação.')
       setSubmitting(false)
     }
   }
