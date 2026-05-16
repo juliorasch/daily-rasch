@@ -178,7 +178,7 @@ Os ecrãs estão mockados e aprovados pelo Rasch. Manter coerência visual.
 - [x] Painel principal (shell editorial com nav + dois cartões empresa/família)
 - [x] CRUD de clientes (lista, criação, edição, eliminação)
 - [x] CRUD de orçamentos (pipeline Kanban com 4 colunas)
-- [ ] CRUD de obras
+- [x] CRUD de obras (Kanban 3 colunas, ligação a cliente + orçamento)
 - [ ] CRUD de decisões
 - [ ] Vista família (entradas + despesas)
 
