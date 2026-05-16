@@ -99,10 +99,8 @@ export default function DespesaForm({ despesa, onClose, onSaved, autoCapture }: 
       const path = await uploadFatura(file)
       setFotoUrl(path)
       setAnaliseInfo(null)
-      // Auto-analyze após upload em modo autoCapture — poupa um clique.
-      if (autoCapture) {
-        setTimeout(() => analisarFotoCom(path), 300)
-      }
+      // SEMPRE auto-analisa após upload — a IA é o coração da feature.
+      setTimeout(() => analisarFotoCom(path), 300)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha no upload.')
     } finally {
@@ -133,12 +131,16 @@ export default function DespesaForm({ despesa, onClose, onSaved, autoCapture }: 
       if (fnError) throw fnError
       if (!out || out.error) throw new Error(out?.error ?? 'Sem resposta.')
 
+      // Aplicar tudo agressivamente — a IA é a fonte primária. Se o utilizador
+      // já tinha editado algo manualmente, fica como estava (preserva edição).
       if (out.fornecedor && !fornecedor.trim()) setFornecedor(out.fornecedor)
       if (out.nif_fornecedor && !nifFornecedor.trim()) setNifFornecedor(out.nif_fornecedor)
       if (typeof out.valor === 'number' && !valor) setValor(String(out.valor))
       if (out.data) setData(out.data)
       if (out.categoria && !categoria.trim()) setCategoria(out.categoria)
-      if (out.obra_sugerida_id && !obraId) {
+      // Obra: sempre que a IA sugere uma válida, aplicamos (mesmo que haja uma
+      // anterior — sugestão da IA prevalece, user corrige se errado).
+      if (out.obra_sugerida_id) {
         const existe = obras.some((o) => o.id === out.obra_sugerida_id)
         if (existe) setObraId(out.obra_sugerida_id)
       }
@@ -151,9 +153,17 @@ export default function DespesaForm({ despesa, onClose, onSaved, autoCapture }: 
       }
       setConfirmado(false)
       const conf = typeof out.confianca === 'number'
-        ? ` (confiança ${(out.confianca * 100).toFixed(0)}%)`
+        ? ` · confiança ${(out.confianca * 100).toFixed(0)}%`
         : ''
-      setAnaliseInfo(`Campos preenchidos pela IA${conf}. Confirma antes de guardar.`)
+      const obraDetectada = out.obra_sugerida_id
+        ? obras.find((o) => o.id === out.obra_sugerida_id)
+        : null
+      const obraInfo = obraDetectada
+        ? ` · obra: ${obraDetectada.descricao.slice(0, 40)}`
+        : out.obra_sugerida_id === null
+          ? ' · sem obra associada'
+          : ''
+      setAnaliseInfo(`IA processou${conf}${obraInfo}. Revê e guarda.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha na análise.')
     } finally {
@@ -236,19 +246,34 @@ export default function DespesaForm({ despesa, onClose, onSaved, autoCapture }: 
 
             {fotoPreviewUrl ? (
               <div className="border border-line rounded-editorial overflow-hidden bg-bg">
-                <img
-                  src={fotoPreviewUrl}
-                  alt="Fatura"
-                  className="w-full max-h-72 object-contain bg-bg-deep"
-                />
+                <div className="relative">
+                  <img
+                    src={fotoPreviewUrl}
+                    alt="Fatura"
+                    className="w-full max-h-72 object-contain bg-bg-deep"
+                  />
+                  {analisando && (
+                    <div className="absolute inset-0 bg-bg-deep/85 flex flex-col items-center justify-center gap-3">
+                      <div className="flex gap-1.5">
+                        <span className="w-2 h-2 bg-gold rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2 h-2 bg-gold rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
+                        <span className="w-2 h-2 bg-gold rounded-full animate-pulse" style={{ animationDelay: '400ms' }} />
+                      </div>
+                      <span className="text-gold text-[11px] tracking-editorial-wide uppercase">
+                        IA a analisar…
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center justify-between px-4 py-3 border-t border-line gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={handleAnalisar}
                     disabled={analisando || !isStoragePath(fotoUrl)}
-                    className="border border-gold text-gold px-4 py-2 text-[11px] tracking-editorial-wide uppercase rounded-editorial hover:bg-gold hover:text-bg transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gold"
+                    className="text-muted text-[11px] tracking-editorial-wide uppercase hover:text-gold transition-colors disabled:opacity-50"
+                    title="Voltar a analisar com IA"
                   >
-                    {analisando ? 'A analisar…' : 'Analisar com IA'}
+                    ↻ Re-analisar
                   </button>
                   <button
                     type="button"
@@ -265,7 +290,7 @@ export default function DespesaForm({ despesa, onClose, onSaved, autoCapture }: 
                   {uploadingFoto ? 'A carregar…' : 'Capturar ou escolher ficheiro'}
                 </span>
                 <span className="text-muted text-xs italic text-center">
-                  No telemóvel abre a câmara. Aceita JPG, PNG ou PDF.
+                  No telemóvel abre a câmara. IA analisa automaticamente. Aceita JPG, PNG ou PDF.
                 </span>
                 <input
                   ref={fileInputRef}
@@ -280,7 +305,10 @@ export default function DespesaForm({ despesa, onClose, onSaved, autoCapture }: 
             )}
 
             {analiseInfo && (
-              <p className="text-positive text-xs italic mt-2">{analiseInfo}</p>
+              <p className="text-positive text-xs italic mt-2 flex items-center gap-2">
+                <span className="text-gold">✦</span>
+                {analiseInfo}
+              </p>
             )}
           </div>
 
