@@ -9,6 +9,9 @@ type Props = {
   accentColor?: string
   /** className extra para o container. */
   className?: string
+  /** Quando definido, move ligeiramente o quadrado de acento — usado em
+   *  contextos com efeito parallax (ex: Hub). */
+  parallax?: { x: number; y: number }
 }
 
 /**
@@ -22,7 +25,11 @@ export default function RaschMark({
   color = '#C9A961',
   accentColor = '#5A7A7E',
   className = '',
+  parallax,
 }: Props) {
+  const accentX = 2 + (parallax?.x ?? 0) * 2
+  const accentY = 68 + (parallax?.y ?? 0) * 2
+
   return (
     <svg
       width={size}
@@ -33,7 +40,7 @@ export default function RaschMark({
       aria-label="Rasch Remodeling"
     >
       {showAccent && (
-        <rect x="2" y="68" width="22" height="22" fill={accentColor} opacity="0.92" />
+        <rect x={accentX} y={accentY} width="22" height="22" fill={accentColor} opacity="0.92" />
       )}
       <g fill={color}>
         {/* corpo superior do R com canto chanfrado */}

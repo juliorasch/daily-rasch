@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import RaschMark from '@/components/RaschMark'
 
 const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 const mesAno = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' })
@@ -151,7 +152,7 @@ export default function Hub() {
                 : `${stats.orcamentosAbertos} orçamentos · ${stats.despesasPorConfirmar} despesas por confirmar`
             }
             alerta={stats.decisoesAlta > 0 ? `${stats.decisoesAlta} decisões prioritárias` : null}
-            mark={<RaschMark parallax={parallax} />}
+            mark={<RaschMark parallax={parallax} className="w-full h-full" />}
             onClick={() => navigate('/painel')}
             tilt={parallax}
             invert={false}
@@ -290,25 +291,6 @@ function HubTile({
         </div>
       </div>
     </button>
-  )
-}
-
-function RaschMark({ parallax }: { parallax: { x: number; y: number } }) {
-  return (
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <g fill="#C9A961">
-        <path d="M 16 10 L 70 10 L 86 26 L 86 50 L 50 50 L 50 62 L 16 62 Z" />
-        <path d="M 50 50 L 64 50 L 92 92 L 78 92 Z" />
-      </g>
-      <rect
-        x={2 + parallax.x * 2}
-        y={68 + parallax.y * 2}
-        width="22"
-        height="22"
-        fill="#5A7A7E"
-        opacity="0.92"
-      />
-    </svg>
   )
 }
 
