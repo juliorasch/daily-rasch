@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
+import { extractFunctionError, supabase } from '@/lib/supabase'
 import { deleteFatura, resolveFotoUrl, uploadFatura } from '@/lib/storage'
 import type { Database } from '@/types/database'
 
@@ -97,7 +97,7 @@ export default function CapturaExpress({ onClose, onSaved }: Props) {
       const { data: ai, error: fnError } = await supabase.functions.invoke<
         AnaliseIA & { error?: string }
       >('analisar-fatura', { body: { fotoPath: path } })
-      if (fnError) throw fnError
+      if (fnError) throw new Error(await extractFunctionError(fnError))
       if (!ai || (ai as { error?: string }).error)
         throw new Error((ai as { error?: string })?.error ?? 'Sem resposta da IA.')
 

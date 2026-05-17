@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { extractFunctionError, supabase } from '@/lib/supabase'
 import {
   deleteFatura,
   isStoragePath,
@@ -144,7 +144,7 @@ export default function DespesaForm({ despesa, onClose, onSaved, autoCapture }: 
       const { data: out, error: fnError } = await supabase.functions.invoke<
         AnaliseIA & { error?: string }
       >('analisar-fatura', { body: { fotoPath: path } })
-      if (fnError) throw fnError
+      if (fnError) throw new Error(await extractFunctionError(fnError))
       if (!out || out.error) throw new Error(out?.error ?? 'Sem resposta.')
 
       // Aplicar tudo agressivamente — a IA é a fonte primária. Se o utilizador
