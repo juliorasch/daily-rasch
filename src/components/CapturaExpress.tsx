@@ -25,14 +25,18 @@ type Step = 'pick' | 'uploading' | 'analyzing' | 'saving' | 'done' | 'error' | '
 // fechar o modal nestes, há que limpar o ficheiro no storage.
 const STEPS_FOTO_ORFA: Step[] = ['analyzing', 'saving', 'error', 'fallback']
 
+export type DestinoCaptura = 'empresa' | 'familia'
+
 type Props = {
+  /** Onde guardar a despesa. Default: 'empresa'. */
+  destino?: DestinoCaptura
   onClose: () => void
   onSaved: (despesaId?: string) => void
 }
 
 const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 
-export default function CapturaExpress({ onClose, onSaved }: Props) {
+export default function CapturaExpress({ destino = 'empresa', onClose, onSaved }: Props) {
   const [step, setStep] = useState<Step>('pick')
   const [fotoPath, setFotoPath] = useState<string | null>(null)
   const [fotoPreviewUrl, setFotoPreviewUrl] = useState<string | null>(null)
@@ -114,43 +118,76 @@ export default function CapturaExpress({ onClose, onSaved }: Props) {
         return
       }
 
-      // 4. Resolver obra: usar a sugestão da IA, se houver.
-      const obras = await fetchObrasEmCurso()
+      // 4. Resolver obra: só para destino 'empresa'. Família não tem obras.
       let obraId: string | null = null
-      if (ai.obra_sugerida_id) {
-        const existe = obras.find((o) => o.id === ai.obra_sugerida_id)
-        if (existe) obraId = existe.id
-      }
-      if (obraId) {
-        setObraSelecionada(obras.find((o) => o.id === obraId) ?? null)
+      if (destino === 'empresa') {
+        const obras = await fetchObrasEmCurso()
+        if (ai.obra_sugerida_id) {
+          const existe = obras.find((o) => o.id === ai.obra_sugerida_id)
+          if (existe) obraId = existe.id
+        }
+        if (obraId) {
+          setObraSelecionada(obras.find((o) => o.id === obraId) ?? null)
+        }
       }
 
-      // 5. Auto-save
+      // 5. Auto-save — branch consoante destino.
       setStep('saving')
-      const descricaoFinal = ai.itens && ai.itens.length > 0
+      const itensDescricao = ai.itens && ai.itens.length > 0
         ? ai.itens.map((it) => `${it.descricao} — ${it.valor.toFixed(2)}€`).join('\n')
         : null
+      const dataFinal = ai.data || new Date().toISOString().slice(0, 10)
 
-      const payload = {
-        obra_id: obraId,
-        fornecedor: ai.fornecedor.trim(),
-        nif_fornecedor: ai.nif_fornecedor?.trim() ?? null,
-        valor: ai.valor,
-        data: ai.data || new Date().toISOString().slice(0, 10),
-        descricao: descricaoFinal,
-        categoria: ai.categoria?.trim() ?? null,
-        foto_url: path,
-        confirmado_pelo_user: false,
+      let savedId: string | null
+      if (destino === 'empresa') {
+        const payload = {
+          obra_id: obraId,
+          fornecedor: ai.fornecedor.trim(),
+          nif_fornecedor: ai.nif_fornecedor?.trim() ?? null,
+          valor: ai.valor,
+          data: dataFinal,
+          descricao: itensDescricao,
+          categoria: ai.categoria?.trim() ?? null,
+          foto_url: path,
+          confirmado_pelo_user: false,
+        }
+        const { data: saved, error: saveError } = await supabase
+          .from('despesas')
+          .insert(payload)
+          .select('id')
+          .single()
+        if (saveError) throw saveError
+        savedId = saved?.id ?? null
+      } else {
+        // Família: schema diferente, sem obra/NIF. Descrição = fornecedor +
+        // (itens se houver). Tipo = variável por defeito (user edita se
+        // quiser marcar como fixa).
+        const descricao = itensDescricao
+          ? `${ai.fornecedor.trim()} — ${itensDescricao.split('\n')[0]}${
+              ai.itens && ai.itens.length > 1 ? ` (+${ai.itens.length - 1})` : ''
+            }`
+          : ai.fornecedor.trim()
+        const payload = {
+          descricao,
+          valor: ai.valor,
+          categoria: ai.categoria?.trim() ?? null,
+          tipo: 'variavel' as const,
+          data: dataFinal,
+          recorrente: false,
+        }
+        const { data: saved, error: saveError } = await supabase
+          .from('despesas_familia')
+          .insert(payload)
+          .select('id')
+          .single()
+        if (saveError) throw saveError
+        savedId = saved?.id ?? null
+        // Família não usa foto_url — descarta o ficheiro do storage para
+        // não acumular lixo (a tabela despesas_familia não tem foto_url).
+        await discardFoto(path)
+        setFotoPath(null)
       }
-
-      const { data: saved, error: saveError } = await supabase
-        .from('despesas')
-        .insert(payload)
-        .select('id')
-        .single()
-
-      if (saveError) throw saveError
-      setSavedDespesaId(saved?.id ?? null)
+      setSavedDespesaId(savedId)
       setStep('done')
     } catch (err) {
       // Algo falhou após upload — a despesa não foi guardada. Limpa a foto
@@ -181,7 +218,7 @@ export default function CapturaExpress({ onClose, onSaved }: Props) {
           <div className="flex items-center gap-3">
             <span className="block h-px w-7 bg-gold" />
             <span className="text-gold text-[11px] tracking-editorial-wide uppercase">
-              Captura express
+              Captura express {destino === 'familia' ? '· Família' : '· Empresa'}
             </span>
           </div>
           {step !== 'uploading' && step !== 'analyzing' && step !== 'saving' && (
@@ -276,7 +313,7 @@ export default function CapturaExpress({ onClose, onSaved }: Props) {
               {extracted.categoria && (
                 <Row label="Categoria" value={extracted.categoria} />
               )}
-              {obraSelecionada && (
+              {destino === 'empresa' && obraSelecionada && (
                 <Row
                   label="Obra"
                   value={
@@ -287,8 +324,11 @@ export default function CapturaExpress({ onClose, onSaved }: Props) {
                   accent="text-gold"
                 />
               )}
-              {!obraSelecionada && (
+              {destino === 'empresa' && !obraSelecionada && (
                 <Row label="Obra" value="Sem obra associada" muted />
+              )}
+              {destino === 'familia' && (
+                <Row label="Destino" value="Família" accent="text-gold" />
               )}
               {extracted.itens && extracted.itens.length > 0 && (
                 <div className="pt-3">
@@ -324,7 +364,7 @@ export default function CapturaExpress({ onClose, onSaved }: Props) {
 
             <div className="flex gap-2 flex-wrap">
               <Link
-                to="/despesas"
+                to={destino === 'familia' ? '/familia' : '/despesas'}
                 onClick={() => onSaved(savedDespesaId ?? undefined)}
                 className="flex-1 border border-gold text-gold px-4 py-3 text-center text-[11px] tracking-editorial-wide uppercase rounded-editorial hover:bg-gold hover:text-bg transition-colors"
               >
