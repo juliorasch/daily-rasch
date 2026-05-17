@@ -11,12 +11,24 @@ type Filtro = 'todas' | 'por_confirmar'
 
 const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 const dataPt = new Intl.DateTimeFormat('pt-PT')
+const mesAno = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' })
 
 function formatDate(d: string): string {
   return dataPt.format(new Date(d))
 }
 
+function monthBounds(ref: Date): { start: string; end: string } {
+  const start = new Date(ref.getFullYear(), ref.getMonth(), 1)
+  const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 1)
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  return { start: iso(start), end: iso(end) }
+}
+
 export default function Despesas() {
+  const [ref, setRef] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
   const [despesas, setDespesas] = useState<Despesa[]>([])
   const [obras, setObras] = useState<ObraLite[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,13 +37,20 @@ export default function Despesas() {
   const [obraFiltro, setObraFiltro] = useState<string>('')
   const [filtro, setFiltro] = useState<Filtro>('todas')
 
+  const { start, end } = useMemo(() => monthBounds(ref), [ref])
+
   async function load() {
     setLoading(true)
     setError(null)
     const [eDesp, eObras] = await Promise.all([
+      // Filtra pela data da fatura (não pela data em que foi capturada) —
+      // assim uma fatura de 29 Abril cai sempre em Abril, mesmo que tenha
+      // sido tirada a foto a 3 de Maio.
       supabase
         .from('despesas')
         .select('*, obra:obras(id, descricao)')
+        .gte('data', start)
+        .lt('data', end)
         .order('data', { ascending: false }),
       supabase.from('obras').select('id, descricao').order('created_at', { ascending: false }),
     ])
@@ -46,7 +65,14 @@ export default function Despesas() {
 
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, end])
+
+  function changeMonth(delta: number) {
+    setRef((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1))
+  }
+
+  const tituloMes = mesAno.format(ref)
 
   const visiveis = useMemo(() => {
     return despesas.filter((d) => {
@@ -68,7 +94,7 @@ export default function Despesas() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-12 gap-4 flex-wrap">
+      <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-3 mb-3">
             <span className="block h-px w-7 bg-gold" />
@@ -79,6 +105,7 @@ export default function Despesas() {
           <h1 className="font-display text-4xl text-cream-bright leading-tight">
             Despesas <span className="italic text-gold">por obra.</span>
           </h1>
+          <p className="text-muted text-sm italic mt-2 capitalize">{tituloMes}</p>
         </div>
         <button
           type="button"
@@ -86,6 +113,26 @@ export default function Despesas() {
           className="shrink-0 border border-gold text-gold px-5 py-3 text-[11px] tracking-editorial-wide uppercase rounded-editorial hover:bg-gold hover:text-bg transition-colors"
         >
           Nova despesa
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between mb-6">
+        <button
+          type="button"
+          onClick={() => changeMonth(-1)}
+          className="text-muted hover:text-gold text-[11px] tracking-editorial-wide uppercase transition-colors"
+        >
+          ← Anterior
+        </button>
+        <span className="text-cream-bright font-display italic text-lg capitalize">
+          {tituloMes}
+        </span>
+        <button
+          type="button"
+          onClick={() => changeMonth(1)}
+          className="text-muted hover:text-gold text-[11px] tracking-editorial-wide uppercase transition-colors"
+        >
+          Próximo →
         </button>
       </div>
 
@@ -200,7 +247,7 @@ export default function Despesas() {
 
           {visiveis.length === 0 && (
             <p className="text-muted text-sm italic py-8 text-center">
-              Sem despesas para os filtros actuais.
+              Sem despesas em {tituloMes.toLowerCase()} para os filtros actuais.
             </p>
           )}
         </div>
