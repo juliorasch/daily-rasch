@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import RaschMark from '@/components/RaschMark'
 
 const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 const mesAno = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' })
@@ -32,6 +33,20 @@ function monthBounds(): { start: string; end: string } {
   return { start, end }
 }
 
+type FixaLite = { descricao: string; valor: number; data: string }
+
+function dedupeFixasPorDescricao(rows: FixaLite[]): FixaLite[] {
+  const porChave = new Map<string, FixaLite>()
+  for (const row of rows) {
+    const chave = row.descricao.trim().toLowerCase()
+    const existente = porChave.get(chave)
+    if (!existente || row.data > existente.data) {
+      porChave.set(chave, row)
+    }
+  }
+  return [...porChave.values()]
+}
+
 export default function Hub() {
   const [stats, setStats] = useState<Stats>(STATS_ZERO)
   const [loading, setLoading] = useState(true)
@@ -46,13 +61,28 @@ export default function Hub() {
       supabase.from('decisoes').select('estado, prioridade'),
       supabase.from('despesas').select('confirmado_pelo_user'),
       supabase.from('entradas_familia').select('valor').gte('data', start).lt('data', end),
-      supabase.from('despesas_familia').select('valor').gte('data', start).lt('data', end),
+      // Despesas familiares: variáveis do mês + todas as fixas activas até este mês.
+      // Mesma lógica da página Família — assim os números batem certo.
+      supabase
+        .from('despesas_familia')
+        .select('descricao, valor, tipo, data')
+        .eq('tipo', 'variavel')
+        .gte('data', start)
+        .lt('data', end),
+      supabase
+        .from('despesas_familia')
+        .select('descricao, valor, tipo, data')
+        .eq('tipo', 'fixa')
+        .lt('data', end),
     ])
-      .then(([o, ob, d, de, eFam, dFam]) => {
+      .then(([o, ob, d, de, eFam, dVar, dFix]) => {
         const entradasTotal =
           eFam.data?.reduce((a, r) => a + Number(r.valor), 0) ?? 0
-        const despesasTotal =
-          dFam.data?.reduce((a, r) => a + Number(r.valor), 0) ?? 0
+        const variaveisTotal =
+          dVar.data?.reduce((a, r) => a + Number(r.valor), 0) ?? 0
+        const fixasUnicas = dedupeFixasPorDescricao(dFix.data ?? [])
+        const fixasTotal = fixasUnicas.reduce((a, r) => a + Number(r.valor), 0)
+        const despesasTotal = variaveisTotal + fixasTotal
         setStats({
           orcamentosAbertos:
             o.data?.filter(
@@ -122,7 +152,7 @@ export default function Hub() {
                 : `${stats.orcamentosAbertos} orçamentos · ${stats.despesasPorConfirmar} despesas por confirmar`
             }
             alerta={stats.decisoesAlta > 0 ? `${stats.decisoesAlta} decisões prioritárias` : null}
-            mark={<RaschMark parallax={parallax} />}
+            mark={<RaschMark parallax={parallax} className="w-full h-full" />}
             onClick={() => navigate('/painel')}
             tilt={parallax}
             invert={false}
@@ -261,25 +291,6 @@ function HubTile({
         </div>
       </div>
     </button>
-  )
-}
-
-function RaschMark({ parallax }: { parallax: { x: number; y: number } }) {
-  return (
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <g fill="#C9A961">
-        <path d="M 16 10 L 70 10 L 86 26 L 86 50 L 50 50 L 50 62 L 16 62 Z" />
-        <path d="M 50 50 L 64 50 L 92 92 L 78 92 Z" />
-      </g>
-      <rect
-        x={2 + parallax.x * 2}
-        y={68 + parallax.y * 2}
-        width="22"
-        height="22"
-        fill="#5A7A7E"
-        opacity="0.92"
-      />
-    </svg>
   )
 }
 

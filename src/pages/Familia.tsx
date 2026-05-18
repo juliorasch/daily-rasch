@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import CapturaExpress from '@/components/CapturaExpress'
 import VoltarHub from '@/components/VoltarHub'
 import type { Database } from '@/types/database'
 
@@ -33,6 +34,23 @@ function monthBounds(ref: Date): { start: string; end: string } {
   return { start: iso(start), end: iso(end) }
 }
 
+function dedupeFixas(rows: Despesa[]): Despesa[] {
+  // Fixas duplicadas (legacy de quando se clonava do mês anterior) podem
+  // inflacionar o total. Agrupa por descrição (case-insensitive) e fica
+  // com a mais recente — assumida como fonte de verdade.
+  const porChave = new Map<string, Despesa>()
+  for (const row of rows) {
+    const chave = row.descricao.trim().toLowerCase()
+    const existente = porChave.get(chave)
+    if (!existente || row.data > existente.data) {
+      porChave.set(chave, row)
+    }
+  }
+  return [...porChave.values()].sort((a, b) =>
+    a.descricao.localeCompare(b.descricao, 'pt'),
+  )
+}
+
 export default function Familia() {
   const [ref, setRef] = useState(() => {
     const now = new Date()
@@ -44,6 +62,7 @@ export default function Familia() {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
   const [tab, setTab] = useState<Kind>('despesa')
+  const [capturando, setCapturando] = useState(false)
 
   const { start, end } = useMemo(() => monthBounds(ref), [ref])
 
@@ -85,7 +104,10 @@ export default function Familia() {
       setError(eFixas.error.message)
     } else {
       setEntradas(eEntradas.data ?? [])
-      setDespesas([...(eFixas.data ?? []), ...(eVariaveis.data ?? [])])
+      // Dedupe: se houver várias fixas com a mesma descrição (legacy de
+      // quando se clonava entre meses), fica só a mais recente.
+      const fixasUnicas = dedupeFixas(eFixas.data ?? [])
+      setDespesas([...fixasUnicas, ...(eVariaveis.data ?? [])])
     }
     setLoading(false)
   }
@@ -140,6 +162,44 @@ export default function Familia() {
           Vida <span className="italic text-gold">familiar.</span>
         </h1>
       </div>
+
+      {/* HERO: Capturar fatura — IA preenche tudo */}
+      <button
+        type="button"
+        onClick={() => setCapturando(true)}
+        className="group relative w-full bg-gradient-to-br from-bg-card to-bg-2 border border-line hover:border-gold rounded-editorial p-6 md:p-8 mb-4 transition-colors text-left overflow-hidden"
+      >
+        <div className="absolute right-5 top-5 opacity-[0.08] group-hover:opacity-[0.18] transition-opacity duration-500">
+          <svg viewBox="0 0 80 80" className="w-24 h-24 md:w-28 md:h-28" aria-hidden>
+            <rect x="14" y="10" width="48" height="60" rx="2" fill="#C9A961" />
+            <line x1="22" y1="22" x2="54" y2="22" stroke="#0E1F1D" strokeWidth="2" />
+            <line x1="22" y1="32" x2="54" y2="32" stroke="#0E1F1D" strokeWidth="1.5" />
+            <line x1="22" y1="40" x2="44" y2="40" stroke="#0E1F1D" strokeWidth="1.5" />
+            <line x1="22" y1="48" x2="54" y2="48" stroke="#0E1F1D" strokeWidth="1.5" />
+            <line x1="22" y1="56" x2="38" y2="56" stroke="#0E1F1D" strokeWidth="1.5" />
+          </svg>
+        </div>
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="block h-px w-7 bg-gold" />
+            <span className="text-gold text-[11px] tracking-editorial-wide uppercase">
+              Atalho rápido
+            </span>
+          </div>
+          <h2 className="font-display text-2xl md:text-3xl text-cream-bright leading-tight mb-2">
+            Capturar <span className="italic text-gold">fatura.</span>
+          </h2>
+          <p className="text-muted text-sm leading-relaxed max-w-prose mb-4">
+            Tira foto de qualquer recibo de casa — supermercado, farmácia,
+            restaurante. A IA lê e regista como despesa variável no mês da
+            fatura. Tu confirmas e está feito.
+          </p>
+          <span className="inline-flex items-center gap-2 border border-gold text-gold px-4 py-2.5 text-[11px] tracking-editorial-wide uppercase rounded-editorial group-hover:bg-gold group-hover:text-bg transition-colors">
+            Tirar foto ou escolher ficheiro
+            <span className="text-base">→</span>
+          </span>
+        </div>
+      </button>
 
       {/* HERO: adicionar despesa/entrada com 1 toque */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
@@ -326,6 +386,17 @@ export default function Familia() {
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null)
+            await load()
+          }}
+        />
+      )}
+
+      {capturando && (
+        <CapturaExpress
+          destino="familia"
+          onClose={() => setCapturando(false)}
+          onSaved={async () => {
+            setCapturando(false)
             await load()
           }}
         />
