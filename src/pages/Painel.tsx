@@ -5,6 +5,11 @@ import DespesaForm from '@/components/DespesaForm'
 import CapturaExpress from '@/components/CapturaExpress'
 import RaschMark from '@/components/RaschMark'
 import VoltarHub from '@/components/VoltarHub'
+import GraficosPainel, {
+  type FunilOrcamentos,
+  type ObraMargem,
+  type SemanaDespesas,
+} from '@/components/GraficosPainel'
 
 const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' })
 const mesAno = new Intl.DateTimeFormat('pt-PT', { month: 'long', year: 'numeric' })
@@ -28,6 +33,16 @@ type Resumo = {
   decisoesPendentes: number
   decisoesAltaPrioridade: number
   alertas: Alerta[]
+  funil: FunilOrcamentos
+  obrasMargem: ObraMargem[]
+  semanasDespesas: SemanaDespesas[]
+}
+
+const FUNIL_VAZIO: FunilOrcamentos = {
+  enviado: { n: 0, valor: 0 },
+  em_analise: { n: 0, valor: 0 },
+  aceite: { n: 0, valor: 0 },
+  recusado: { n: 0, valor: 0 },
 }
 
 const RESUMO_VAZIO: Resumo = {
@@ -39,6 +54,9 @@ const RESUMO_VAZIO: Resumo = {
   decisoesPendentes: 0,
   decisoesAltaPrioridade: 0,
   alertas: [],
+  funil: FUNIL_VAZIO,
+  obrasMargem: [],
+  semanasDespesas: [],
 }
 
 function diasAteHoje(d: string): number {
@@ -53,6 +71,40 @@ function descreverDias(dias: number): string {
   if (dias === 0) return 'Hoje'
   if (dias === 1) return 'Amanhã'
   return `Em ${dias} dias`
+}
+
+// Constrói 8 buckets semanais terminados na semana actual.
+// A label é a data do início da semana no formato "dd/MM".
+function construirSemanas(
+  despesas: Array<{ valor: number; data: string }>,
+  now: Date,
+): SemanaDespesas[] {
+  // início da semana actual (segunda-feira)
+  const inicioSemanaActual = new Date(now)
+  const diaSemana = (inicioSemanaActual.getDay() + 6) % 7 // 0 = Mon
+  inicioSemanaActual.setHours(0, 0, 0, 0)
+  inicioSemanaActual.setDate(inicioSemanaActual.getDate() - diaSemana)
+
+  const buckets: SemanaDespesas[] = []
+  for (let i = 7; i >= 0; i--) {
+    const inicio = new Date(inicioSemanaActual)
+    inicio.setDate(inicio.getDate() - i * 7)
+    const dd = String(inicio.getDate()).padStart(2, '0')
+    const mm = String(inicio.getMonth() + 1).padStart(2, '0')
+    buckets.push({ label: `${dd}/${mm}`, total: 0 })
+  }
+
+  for (const d of despesas) {
+    const data = new Date(d.data)
+    if (Number.isNaN(data.getTime())) continue
+    const diff = inicioSemanaActual.getTime() - data.getTime()
+    const semanasAtras = Math.floor(diff / (7 * 86_400_000))
+    const indice = 7 - semanasAtras
+    if (indice >= 0 && indice < buckets.length) {
+      buckets[indice].total += Number(d.valor)
+    }
+  }
+  return buckets
 }
 
 export default function Painel() {
@@ -72,6 +124,10 @@ export default function Painel() {
     setLoading(true)
     setError(null)
     try {
+      const oitoSemanasAtras = new Date(now)
+      oitoSemanasAtras.setDate(oitoSemanasAtras.getDate() - 56)
+      const oitoSemanasAtrasIso = oitoSemanasAtras.toISOString().slice(0, 10)
+
       const [
         orcamentos,
         obras,
@@ -80,6 +136,9 @@ export default function Painel() {
         orcamentosVencidos,
         decisoesAltaPendentes,
         obrasPrazoProximo,
+        obrasComCliente,
+        despesasComObra,
+        despesasUltimas8Semanas,
       ] = await Promise.all([
         supabase.from('orcamentos').select('valor, estado'),
         supabase.from('obras').select('valor_contratado, estado'),
@@ -108,6 +167,19 @@ export default function Painel() {
           .lte('prazo', limiteIso)
           .order('prazo', { ascending: true })
           .limit(5),
+        supabase
+          .from('obras')
+          .select('id, descricao, valor_contratado, cliente:clientes(nome)')
+          .eq('estado', 'em_curso'),
+        supabase
+          .from('despesas')
+          .select('obra_id, valor')
+          .not('obra_id', 'is', null),
+        supabase
+          .from('despesas')
+          .select('valor, data')
+          .gte('data', oitoSemanasAtrasIso)
+          .order('data', { ascending: true }),
       ])
 
       const firstError =
@@ -117,7 +189,10 @@ export default function Painel() {
         decisoes.error ||
         orcamentosVencidos.error ||
         decisoesAltaPendentes.error ||
-        obrasPrazoProximo.error
+        obrasPrazoProximo.error ||
+        obrasComCliente.error ||
+        despesasComObra.error ||
+        despesasUltimas8Semanas.error
       if (firstError) {
         setError(firstError.message)
         setLoading(false)
@@ -182,6 +257,47 @@ export default function Painel() {
         })
       }
 
+      const funil: FunilOrcamentos = {
+        enviado: { n: 0, valor: 0 },
+        em_analise: { n: 0, valor: 0 },
+        aceite: { n: 0, valor: 0 },
+        recusado: { n: 0, valor: 0 },
+      }
+      for (const o of orcamentos.data ?? []) {
+        const k = o.estado as keyof FunilOrcamentos
+        if (k in funil) {
+          funil[k].n += 1
+          funil[k].valor += Number(o.valor ?? 0)
+        }
+      }
+
+      const gastoPorObra = new Map<string, number>()
+      for (const d of (despesasComObra.data ?? []) as Array<{
+        obra_id: string
+        valor: number
+      }>) {
+        gastoPorObra.set(d.obra_id, (gastoPorObra.get(d.obra_id) ?? 0) + Number(d.valor))
+      }
+      const obrasMargem: ObraMargem[] = (
+        (obrasComCliente.data ?? []) as Array<{
+          id: string
+          descricao: string
+          valor_contratado: number | null
+          cliente: { nome: string } | null
+        }>
+      ).map((o) => ({
+        id: o.id,
+        descricao: o.descricao,
+        cliente: o.cliente?.nome ?? null,
+        contratado: Number(o.valor_contratado ?? 0),
+        gasto: gastoPorObra.get(o.id) ?? 0,
+      }))
+
+      const semanasDespesas = construirSemanas(
+        (despesasUltimas8Semanas.data ?? []) as Array<{ valor: number; data: string }>,
+        now,
+      )
+
       setResumo({
         orcamentosAbertos: orcamentosAbertosLista.length,
         orcamentosAbertosValor: orcamentosAbertosLista.reduce((a, r) => a + Number(r.valor), 0),
@@ -199,6 +315,9 @@ export default function Painel() {
             (d) => d.estado === 'pendente' && d.prioridade === 'alta',
           ).length ?? 0,
         alertas: alertas.slice(0, 6),
+        funil,
+        obrasMargem,
+        semanasDespesas,
       })
       setLoading(false)
     } catch (err) {
@@ -349,6 +468,12 @@ export default function Painel() {
               />
             </div>
           </section>
+
+          <GraficosPainel
+            funil={resumo.funil}
+            obras={resumo.obrasMargem}
+            semanas={resumo.semanasDespesas}
+          />
 
           {/* Atalhos para todas as secções */}
           <section>
