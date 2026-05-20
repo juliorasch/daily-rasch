@@ -19,11 +19,11 @@ type AnaliseIA = {
   confianca?: number
 }
 
-type Step = 'pick' | 'uploading' | 'analyzing' | 'saving' | 'done' | 'error' | 'fallback'
+type Step = 'pick' | 'uploading' | 'analyzing' | 'confirmar_obra' | 'saving' | 'done' | 'error' | 'fallback'
 
 // Estados em que a foto ainda não está ligada a uma despesa — se o user
 // fechar o modal nestes, há que limpar o ficheiro no storage.
-const STEPS_FOTO_ORFA: Step[] = ['analyzing', 'saving', 'error', 'fallback']
+const STEPS_FOTO_ORFA: Step[] = ['analyzing', 'confirmar_obra', 'saving', 'error', 'fallback']
 
 export type DestinoCaptura = 'empresa' | 'familia'
 
@@ -43,6 +43,7 @@ export default function CapturaExpress({ destino = 'empresa', onClose, onSaved }
   const [extracted, setExtracted] = useState<AnaliseIA | null>(null)
   const [savedDespesaId, setSavedDespesaId] = useState<string | null>(null)
   const [obraSelecionada, setObraSelecionada] = useState<ObraLite | null>(null)
+  const [obrasDisponiveis, setObrasDisponiveis] = useState<ObraLite[]>([])
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -119,75 +120,57 @@ export default function CapturaExpress({ destino = 'empresa', onClose, onSaved }
       }
 
       // 4. Resolver obra: só para destino 'empresa'. Família não tem obras.
-      let obraId: string | null = null
       if (destino === 'empresa') {
         const obras = await fetchObrasEmCurso()
+        setObrasDisponiveis(obras)
+        
+        // Se IA sugeriu uma obra e existe, pré-seleciona. Senão, fica null.
         if (ai.obra_sugerida_id) {
           const existe = obras.find((o) => o.id === ai.obra_sugerida_id)
-          if (existe) obraId = existe.id
+          if (existe) {
+            setObraSelecionada(existe)
+          }
         }
-        if (obraId) {
-          setObraSelecionada(obras.find((o) => o.id === obraId) ?? null)
-        }
+        
+        // NOVO: Parar aqui para o user CONFIRMAR/MUDAR a obra
+        setStep('confirmar_obra')
+        return
       }
 
-      // 5. Auto-save — branch consoante destino.
+      // Família (destino !== 'empresa'): pula confirmação de obra e vai direto a guardar
       setStep('saving')
       const itensDescricao = ai.itens && ai.itens.length > 0
         ? ai.itens.map((it) => `${it.descricao} — ${it.valor.toFixed(2)}€`).join('\n')
         : null
       const dataFinal = ai.data || new Date().toISOString().slice(0, 10)
 
-      let savedId: string | null
-      if (destino === 'empresa') {
-        const payload = {
-          obra_id: obraId,
-          fornecedor: ai.fornecedor.trim(),
-          nif_fornecedor: ai.nif_fornecedor?.trim() ?? null,
-          valor: ai.valor,
-          data: dataFinal,
-          descricao: itensDescricao,
-          categoria: ai.categoria?.trim() ?? null,
-          foto_url: path,
-          confirmado_pelo_user: false,
-        }
-        const { data: saved, error: saveError } = await supabase
-          .from('despesas')
-          .insert(payload)
-          .select('id')
-          .single()
-        if (saveError) throw saveError
-        savedId = saved?.id ?? null
-      } else {
-        // Família: schema diferente, sem obra/NIF. Descrição = fornecedor +
-        // (itens se houver). Tipo = variável por defeito (user edita se
-        // quiser marcar como fixa).
-        const descricao = itensDescricao
-          ? `${ai.fornecedor.trim()} — ${itensDescricao.split('\n')[0]}${
-              ai.itens && ai.itens.length > 1 ? ` (+${ai.itens.length - 1})` : ''
-            }`
-          : ai.fornecedor.trim()
-        const payload = {
-          descricao,
-          valor: ai.valor,
-          categoria: ai.categoria?.trim() ?? null,
-          tipo: 'variavel' as const,
-          data: dataFinal,
-          recorrente: false,
-        }
-        const { data: saved, error: saveError } = await supabase
-          .from('despesas_familia')
-          .insert(payload)
-          .select('id')
-          .single()
-        if (saveError) throw saveError
-        savedId = saved?.id ?? null
-        // Família não usa foto_url — descarta o ficheiro do storage para
-        // não acumular lixo (a tabela despesas_familia não tem foto_url).
-        await discardFoto(path)
-        setFotoPath(null)
+      // Família: schema diferente, sem obra/NIF. Descrição = fornecedor +
+      // (itens se houver). Tipo = variável por defeito (user edita se
+      // quiser marcar como fixa).
+      const descricao = itensDescricao
+        ? `${ai.fornecedor.trim()} — ${itensDescricao.split('\n')[0]}${
+            ai.itens && ai.itens.length > 1 ? ` (+${ai.itens.length - 1})` : ''
+          }`
+        : ai.fornecedor.trim()
+      const payload = {
+        descricao,
+        valor: ai.valor,
+        categoria: ai.categoria?.trim() ?? null,
+        tipo: 'variavel' as const,
+        data: dataFinal,
+        recorrente: false,
       }
-      setSavedDespesaId(savedId)
+      const { data: saved, error: saveError } = await supabase
+        .from('despesas_familia')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (saveError) throw saveError
+      setSavedDespesaId(saved?.id ?? null)
+      // Família não usa foto_url — descarta o ficheiro do storage para
+      // não acumular lixo (a tabela despesas_familia não tem foto_url).
+      await discardFoto(path)
+      setFotoPath(null)
       setStep('done')
     } catch (err) {
       // Algo falhou após upload — a despesa não foi guardada. Limpa a foto
@@ -209,6 +192,50 @@ export default function CapturaExpress({ destino = 'empresa', onClose, onSaved }
       .select('id, descricao, cliente:clientes(nome)')
       .eq('estado', 'em_curso')
     return (data as ObraLite[] | null) ?? []
+  }
+
+  async function handleConfirmarObra() {
+    try {
+      if (!extracted || !fotoPath) return
+      if (!extracted.fornecedor || typeof extracted.valor !== 'number') return
+      
+      setStep('saving')
+
+      const itensDescricao = extracted.itens && extracted.itens.length > 0
+        ? extracted.itens.map((it) => `${it.descricao} — ${it.valor.toFixed(2)}€`).join('\n')
+        : null
+      const dataFinal = extracted.data || new Date().toISOString().slice(0, 10)
+
+      const payload = {
+        obra_id: obraSelecionada?.id ?? null,
+        fornecedor: extracted.fornecedor.trim(),
+        nif_fornecedor: extracted.nif_fornecedor?.trim() ?? null,
+        valor: extracted.valor,
+        data: dataFinal,
+        descricao: itensDescricao,
+        categoria: extracted.categoria?.trim() ?? null,
+        foto_url: fotoPath,
+        confirmado_pelo_user: true,
+      }
+      
+      const { data: saved, error: saveError } = await supabase
+        .from('despesas')
+        .insert(payload)
+        .select('id')
+        .single()
+      
+      if (saveError) throw saveError
+      
+      setSavedDespesaId(saved?.id ?? null)
+      setStep('done')
+    } catch (err) {
+      if (fotoPath) {
+        await discardFoto(fotoPath)
+        setFotoPath(null)
+      }
+      setError(err instanceof Error ? err.message : String(err))
+      setStep('error')
+    }
   }
 
   return (
@@ -276,6 +303,74 @@ export default function CapturaExpress({ destino = 'empresa', onClose, onSaved }
               {step === 'analyzing' && 'IA a analisar…'}
               {step === 'saving' && 'A guardar…'}
             </p>
+          </div>
+        )}
+
+        {/* CONFIRMAR OBRA */}
+        {step === 'confirmar_obra' && extracted && (
+          <div>
+            <h2 className="font-display text-2xl text-cream-bright mb-6">
+              Qual é a <span className="italic text-gold">obra?</span>
+            </h2>
+
+            {fotoPreviewUrl && (
+              <img
+                src={fotoPreviewUrl}
+                alt="Fatura"
+                className="w-full max-h-32 object-contain bg-bg-deep border border-line rounded-editorial mb-4"
+              />
+            )}
+
+            <div className="space-y-2 mb-6">
+              <Row label="Fornecedor" value={extracted.fornecedor ?? '—'} />
+              <Row
+                label="Valor"
+                value={
+                  typeof extracted.valor === 'number' ? eur.format(extracted.valor) : '—'
+                }
+                accent="text-negative"
+              />
+              {extracted.data && <Row label="Data" value={extracted.data} mono />}
+            </div>
+
+            <div className="mb-6">
+              <label className="text-[11px] tracking-editorial-wide uppercase text-gold-dim block mb-2">
+                Obra
+              </label>
+              <select
+                value={obraSelecionada?.id ?? ''}
+                onChange={(e) => {
+                  const obra = obrasDisponiveis.find((o) => o.id === e.target.value)
+                  setObraSelecionada(obra ?? null)
+                }}
+                className="w-full px-3 py-2.5 bg-bg border border-line text-cream text-sm rounded-editorial focus:outline-none focus:border-gold transition-colors"
+              >
+                <option value="">Seleciona a obra…</option>
+                {obrasDisponiveis.map((obra) => (
+                  <option key={obra.id} value={obra.id}>
+                    {obra.cliente?.nome ? `${obra.cliente.nome} — ${obra.descricao}` : obra.descricao}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="flex-1 text-muted px-4 py-3 text-center text-[11px] tracking-editorial-wide uppercase hover:text-cream transition-colors border border-line rounded-editorial"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarObra}
+                disabled={!obraSelecionada}
+                className="flex-1 border border-gold text-gold px-4 py-3 text-center text-[11px] tracking-editorial-wide uppercase rounded-editorial hover:bg-gold hover:text-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirmar
+              </button>
+            </div>
           </div>
         )}
 
