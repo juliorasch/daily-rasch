@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "rewrites": [
+    { "source": "/cartao", "destination": "/cartao.html" },
     { "source": "/((?!.*\\.).*)", "destination": "/index.html" }
   ]
 }

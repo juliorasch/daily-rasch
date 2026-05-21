@@ -99,6 +99,24 @@ Convenção visual: usar **Fraunces normal** para o início do título e **Fraun
 - **Privacidade** — dados financeiros, RGPD-compliant, encriptação em trânsito e repouso
 - **Sem segredos no código** — todas as chaves em variáveis de ambiente
 
+### Cartão de visita digital (página pública)
+
+Além do app interno privado, o repositório serve uma **página pública
+autónoma** — o cartão de visita digital da Rasch Remodeling. É o destino do
+QR code dos cartões de visita físicos.
+
+- **É público de propósito** — está fora da autenticação. Não é um bug de
+  segurança: não toca em dados privados, não importa o Supabase nem nenhum
+  ecrã interno.
+- **Página separada** — entrada própria no Vite (`cartao.html` →
+  `src/cartao/main.tsx`), bundle independente do app interno.
+- **Conteúdo** — editar `src/cartao/dados.ts` (contactos, redes, serviços).
+  Campos vazios não aparecem no cartão.
+- **URL** — servido em `/cartao` (rewrite no `vercel.json` para
+  `cartao.html`).
+- **QR code** — gerar com `npm run cartao:qr -- <url>` (default:
+  `https://rasch.pt/cartao`). Resultado em `public/cartao-qr.{svg,png}`.
+
 -----
 
 ## 4. ESTRUTURA DE DADOS (modelo inicial)
