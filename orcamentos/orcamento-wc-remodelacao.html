@@ -39,7 +39,7 @@
   .sheet {
     max-width: 820px;
     margin: 0 auto;
-    padding: 56px 44px 72px;
+    padding: 44px 44px 56px;
   }
 
   /* ——— Convenções editoriais ——— */
@@ -114,7 +114,7 @@
   .doc-meta dd { color: var(--cream); }
 
   /* ——— Título do documento ——— */
-  .title-block { margin: 40px 0 34px; }
+  .title-block { margin: 30px 0 26px; }
   .title-block h1 {
     font-size: 40px;
     line-height: 1.1;
@@ -133,7 +133,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
-    margin-bottom: 40px;
+    margin-bottom: 30px;
   }
   .card {
     background: var(--bg-card);
@@ -148,7 +148,8 @@
   .card .row .v { color: var(--cream-bright); }
 
   /* ——— Secção ——— */
-  section.block { margin-bottom: 40px; }
+  section.block { margin-bottom: 28px; }
+  .block.keep { break-inside: avoid; }
   .section-head { margin-bottom: 18px; }
   .section-head h2 { font-size: 22px; color: var(--cream-bright); margin-top: 6px; }
 
@@ -282,6 +283,8 @@
     .brand .wordmark .sub { color: #9c7f3e; }
     .doc-meta, footer .sign, footer .contact { color: #5c6664; }
     .doc-meta .num { color: #0E1F1D; }
+    .doc-meta dd, .totals .row .v, .conditions li, .lede { color: #1c2b29; }
+    .conditions li strong { color: #0E1F1D; }
     .title-block h1, .section-head h2, .card .row .v, tbody td .desc-title,
     .totals .row.grand .v { color: #0E1F1D; }
     .accent, .doc-meta .num em, .kicker span, footer .motto { color: #9c7f3e; }
@@ -457,7 +460,7 @@
   </section>
 
   <!-- ═══════════ CONDIÇÕES ═══════════ -->
-  <section class="block">
+  <section class="block keep">
     <div class="section-head">
       <div class="kicker"><span>02 — Condições</span></div>
       <h2>Termos da <span class="accent">proposta.</span></h2>
