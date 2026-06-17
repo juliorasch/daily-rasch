@@ -280,6 +280,47 @@ Construir como se construísse uma obra da Rasch — sólido, bem feito, sem ata
 
 ## 9. CONTEXTO DO NEGÓCIO (Rasch Remodeling LDA)
 
+### Identificação legal da empresa
+
+Fonte de verdade: **`empresa.json`** (raiz do projeto). Resumo:
+
+| Campo | Valor |
+| ----- | ----- |
+| Designação legal (NIF) | **J.RASCH-REMODELING LDA** |
+| Designação comercial / marca | Rasch Remodeling |
+| NIF / Contribuinte | 518986756 |
+| NISS | 25189867562 (interno) |
+| CAE | 41000 — Construção de edifícios |
+| Morada / sede | Avenida do Brasil n.º 87, r/c B, 2735-673 Agualva-Cacém |
+| Email | info@rasch.pt |
+| WhatsApp / Telefone | +351 935 495 302 |
+
+> Em propostas ao cliente usa-se a marca **Rasch Remodeling** no corpo e a
+> identificação legal completa (designação legal + NIF + morada + contacto)
+> no rodapé. NISS e CAE são internos — não vão para a proposta.
+
+### Padrão de proposta comercial (RAP-AAAA-NNN)
+
+Estrutura de referência (ver proposta-exemplo RAP-2026-013 — Herson Rosa):
+
+1. **Capa** — eyebrow "PROPOSTA DE REMODELAÇÃO", título grande do âmbito,
+   subtítulo descritivo, nome + morada do cliente, mês, validade, nº da proposta.
+2. **01 — Enquadramento** — três caixas-KPI (Valor da proposta · Prazo ·
+   Validade), "O que esta proposta cobre" e "Detalhes técnicos premium incluídos".
+3. **02 — Discriminação dos trabalhos** — grupos numerados (01 Demolições,
+   02 Canalização, 03 Eléctrica, …) com tabela **REF · DESCRIÇÃO · VALOR ·
+   DETALHE**. A maioria das linhas diz "incluído"; algumas têm valor próprio.
+   Itens especiais marcados **PREMIUM**. Bloco **★ Cortesia Rasch** (oferta
+   com valor de mercado a 0 €).
+4. **Resumo do Investimento** — mão-de-obra Rasch por categoria, assentamento,
+   consumíveis, etc. → Valor base · IVA (23%) · Total c/IVA.
+5. **03 — Planeamento / Cronograma** — por semanas.
+6. **04 — Condições** — pagamento (a combinar na adjudicação), validade, notas.
+7. **05 — Aceitação** — assinaturas (Rasch + cliente) e rodapé com identificação.
+
+Convenções: numeração "0 1 — SECÇÃO" com letras espaçadas; mote de fecho
+*"O trabalho bem feito honra quem o entrega e respeita quem o recebe."*
+
 ### Serviços
 
 - Reparações em telhados

@@ -1,0 +1,19 @@
+{
+  "designacao_legal": "J.RASCH-REMODELING LDA",
+  "designacao_comercial": "Rasch Remodeling",
+  "nif": "518986756",
+  "niss": "25189867562",
+  "cae": "41000",
+  "morada": "Avenida do Brasil n.º 87, r/c B",
+  "codigo_postal": "2735-673",
+  "localidade": "Agualva-Cacém",
+  "email": "info@rasch.pt",
+  "whatsapp": "+351 935 495 302",
+  "telefone": "+351 935 495 302",
+  "_notas": [
+    "Fonte de verdade para a identificação da empresa em orçamentos/propostas, faturação e documentos oficiais.",
+    "Nem todos os campos entram numa proposta ao cliente — NISS e CAE são internos; NIF, morada, contacto e email são os que aparecem no rodapé/identificação.",
+    "Designação legal (registo/NIF): J.RASCH-REMODELING LDA. Designação comercial/marca: Rasch Remodeling.",
+    "Numeração de propostas: RAP-AAAA-NNN (ex.: RAP-2026-013). Confirmar sempre o próximo número livre — RAP-2026-013 já foi usado (proposta Herson Rosa, remodelação de 2 WCs)."
+  ]
+}
