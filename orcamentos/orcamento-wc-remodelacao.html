@@ -149,6 +149,8 @@
   .card .row + .row { margin-top: 4px; }
   .card .row .k { color: var(--gold-dim); display: inline-block; min-width: 64px; }
   .card .row .v { color: var(--cream-bright); }
+  .card .row.fillrow { display: flex; align-items: baseline; gap: 10px; margin-top: 14px; }
+  .card .row.fillrow .v { flex: 1; border-bottom: 1px solid var(--line-strong); min-height: 1.3em; }
 
   /* ——— Secção ——— */
   section.block { margin-bottom: 28px; }
@@ -291,6 +293,7 @@
     .totals .row.grand .v { color: #0E1F1D; }
     .accent, .doc-meta .num em, .kicker span, footer .motto { color: #9c7f3e; }
     .card, .conditions { background: #f7f4ec; border-color: #d8cba5; }
+    .card .row.fillrow .v { border-bottom-color: #9c7f3e; }
     tbody td { color: #1c2b29; border-color: #e4dcc6; }
     thead th { background: #0E1F1D; color: #C9A961; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .totals .row.grand .k, .label, .card .row .k, .n { color: #9c7f3e; }
@@ -341,16 +344,16 @@
   <div class="cards">
     <div class="card">
       <span class="label">Cliente</span>
-      <div class="row"><span class="k">Nome</span> <span class="v">[ Nome do cliente ]</span></div>
-      <div class="row"><span class="k">Morada</span> <span class="v">[ Morada da obra ]</span></div>
-      <div class="row"><span class="k">NIF</span> <span class="v">[ Contribuinte ]</span></div>
-      <div class="row"><span class="k">Contacto</span> <span class="v">[ Telefone / email ]</span></div>
+      <div class="row fillrow"><span class="k">Nome</span> <span class="v"></span></div>
+      <div class="row fillrow"><span class="k">Morada</span> <span class="v"></span></div>
+      <div class="row fillrow"><span class="k">NIF</span> <span class="v"></span></div>
+      <div class="row fillrow"><span class="k">Contacto</span> <span class="v"></span></div>
     </div>
     <div class="card">
       <span class="label">Obra</span>
-      <div class="row"><span class="k">Local</span> <span class="v">Instalação sanitária (WC)</span></div>
+      <div class="row fillrow"><span class="k">Local</span> <span class="v"></span></div>
       <div class="row"><span class="k">Âmbito</span> <span class="v">Reparação por infiltração</span></div>
-      <div class="row"><span class="k">Prazo</span> <span class="v">≈ 5 a 7 dias úteis</span></div>
+      <div class="row"><span class="k">Prazo</span> <span class="v">2 semanas</span></div>
       <div class="row"><span class="k">Início</span> <span class="v">A combinar após adjudicação</span></div>
     </div>
   </div>
