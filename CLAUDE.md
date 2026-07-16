@@ -244,7 +244,7 @@ Os ecrãs estão mockados e aprovados pelo Rasch. Manter coerência visual.
 - [x] Notificações de follow-up de orçamentos (Painel — secção "Atenção")
 - [x] Alertas de decisões pendentes (Painel — secção "Atenção", inclui obras com prazo)
 - [x] Vista de Obra dedicada (`/obras/:id` — KPIs, despesas + decisões ligadas, margem)
-- [ ] Manual de utilizador para Rasch e esposa
+- [x] Manual de utilizador para Rasch e esposa (página `/manual` — guia por ecrã em acordeão, passos numerados, dicas e dúvidas comuns)
 - [ ] Lançamento
 
 -----
