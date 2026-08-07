@@ -4,7 +4,12 @@ import { supabase } from '@/lib/supabase'
 
 type Props = { children: ReactNode }
 
-const nav = [
+type NavItem =
+  | { to: string; label: string }
+  | { href: string; label: string }
+
+// Rasch Coach é uma app separada (dashboard Garmin) — abre em separador novo.
+const nav: NavItem[] = [
   { to: '/', label: 'Hub' },
   { to: '/painel', label: 'Painel' },
   { to: '/clientes', label: 'Clientes' },
@@ -13,6 +18,7 @@ const nav = [
   { to: '/despesas', label: 'Despesas' },
   { to: '/decisoes', label: 'Decisões' },
   { to: '/familia', label: 'Família' },
+  { href: 'https://rasch-coach.vercel.app/?key=rasch703', label: 'Desempenho' },
   { to: '/relatorio', label: 'Relatório' },
 ]
 
@@ -74,13 +80,26 @@ export default function Shell({ children }: Props) {
         </div>
         <nav className="max-w-6xl mx-auto px-6 overflow-x-auto">
           <ul className="flex gap-6 pb-3 min-w-max">
-            {nav.map((item) => (
-              <li key={item.to}>
-                <NavLink to={item.to} end={item.to === '/'} className={({ isActive }) => `nav-item block text-[11px] tracking-editorial-wide uppercase pb-2 border-b-2 transition-all ${isActive ? 'text-gold border-gold' : 'text-muted border-transparent hover:text-cream'}`}>
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
+            {nav.map((item) =>
+              'href' in item ? (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="nav-item block text-[11px] tracking-editorial-wide uppercase pb-2 border-b-2 text-muted border-transparent hover:text-cream transition-all"
+                  >
+                    {item.label} <span className="text-gold">↗</span>
+                  </a>
+                </li>
+              ) : (
+                <li key={item.to}>
+                  <NavLink to={item.to} end={item.to === '/'} className={({ isActive }) => `nav-item block text-[11px] tracking-editorial-wide uppercase pb-2 border-b-2 transition-all ${isActive ? 'text-gold border-gold' : 'text-muted border-transparent hover:text-cream'}`}>
+                    {item.label}
+                  </NavLink>
+                </li>
+              ),
+            )}
           </ul>
         </nav>
       </header>
